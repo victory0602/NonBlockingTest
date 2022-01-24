@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.StopWatch;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
@@ -32,6 +33,9 @@ public class APIController {
     public ResponseEntity<ResponseData> Blocking() {
         log.trace("Call blocking.");
 
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
         // Set Header
         HttpHeaders headers = new HttpHeaders();
         headers.add("Content-Type", "application/json");
@@ -42,17 +46,22 @@ public class APIController {
         String body = responseEntity.getBody().toString();
         log.info("body : {}", body);
 
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
         return responseEntity.status(HttpStatus.OK).body(responseData);
     }
 
     // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
     @PostMapping("/apiTest")
-    public ResponseEntity<ResponseData> apiTest(@RequestBody HashMap<String, Object> paramMap) {
+    public ResponseEntity<ResponseData> apiTest(@RequestBody HashMap<String, Object> paramMap) throws InterruptedException {
         log.trace("Call apiTest.");
 
         String errorMsg = paramMap.get("errorMsg").toString();
         log.info("errorMsg : {}", errorMsg);
         responseData.setErrorMsg("http://localhost:8080/apiTest - Call apiTest.");
+
+        Thread.sleep(3000);
         return ResponseEntity.status(HttpStatus.OK).body(responseData);
     }
 }
