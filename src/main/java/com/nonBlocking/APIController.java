@@ -12,6 +12,8 @@ import org.springframework.util.StopWatch;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 
@@ -42,14 +44,103 @@ public class APIController {
 
         responseData.setErrorMsg("http://localhost:18080/blocking - Call blocking.");
         HttpEntity<ResponseData> responseDataHttpEntity = new HttpEntity<>(responseData, headers);
-        ResponseEntity responseEntity = restTemplate.exchange(url, HttpMethod.POST, responseDataHttpEntity, ResponseData.class);
-        String body = responseEntity.getBody().toString();
-        log.info("body : {}", body);
+        ResponseEntity responseEntity = null;
+        for(int i = 0; i < 3; i++) {
+            responseEntity = restTemplate.exchange(url, HttpMethod.POST, responseDataHttpEntity, ResponseData.class);
+            String body = responseEntity.getBody().toString();
+            log.info("body : {}", body);
+        }
 
         stopWatch.stop();
         log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
 
         return responseEntity.status(HttpStatus.OK).body(responseData);
+    }
+
+    @PostMapping("/nonBlocking/webcline01")
+    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient01() {
+        log.trace("Call nonBlocking webcline01.");
+
+        WebClient webClient = WebClient.create("http://localhost:8080");
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        responseData.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline01.");
+
+        Mono<ResponseData> responseEntityMono = null;
+        for(int i = 0; i < 3; i++) {
+            responseEntityMono = webClient.post()
+                    .uri("/apiTest")
+                    //.accept(MediaType.APPLICATION_JSON)
+                    .bodyValue(responseData)
+                    .retrieve()
+                    .bodyToMono(ResponseData.class);
+
+            ResponseData body = responseEntityMono.block();
+            log.info("body : {}", body.toString());
+        }
+
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return Mono.fromSupplier(() -> ResponseEntity.status(HttpStatus.OK).body(responseData));
+    }
+
+    @PostMapping("/nonBlocking/webcline02")
+    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient02() {
+        log.trace("Call nonBlocking webcline02.");
+
+        WebClient webClient = WebClient.create("http://localhost:8080");
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        responseData.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline02.");
+
+        Mono<ResponseData> responseEntityMono = null;
+        for(int i = 0; i < 3; i++) {
+            webClient.post()
+                    .uri("/apiTest")
+                    //.accept(MediaType.APPLICATION_JSON)
+                    .bodyValue(responseData)
+                    .retrieve()
+                    .bodyToMono(ResponseData.class)
+            .subscribe(response ->
+                    log.info("body : {}", response));
+        }
+
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return Mono.fromSupplier(() -> ResponseEntity.status(HttpStatus.OK).body(responseData));
+    }
+
+    @PostMapping("/nonBlocking/webcline03")
+    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient03() {
+        log.trace("Call nonBlocking webcline03.");
+
+        WebClient webClient = WebClient.create("http://localhost:8080");
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        responseData.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline03.");
+
+        Mono<ResponseEntity<ResponseData>> responseEntityMono = null;
+        for(int i = 0; i < 3; i++) {
+            responseEntityMono = webClient.post()
+                    .uri("/apiTest")
+                    //.accept(MediaType.APPLICATION_JSON)
+                    .bodyValue(responseData)
+                    .retrieve()
+                    .toEntity(ResponseData.class);
+        }
+
+        ResponseEntity body = responseEntityMono.block();
+        log.info("body : {}", body.toString());
+
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return Mono.fromSupplier(() -> ResponseEntity.status(HttpStatus.OK).body(responseData));
     }
 
     // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
