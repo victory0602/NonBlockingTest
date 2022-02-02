@@ -17,6 +17,10 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.util.function.Tuples;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.util.HashMap;
 
 @Controller
@@ -33,6 +37,24 @@ public class APIController {
     */
     ApplicationContext restTemplateAC = new AnnotationConfigApplicationContext(RestTemplate.class);
     RestTemplate restTemplate = restTemplateAC.getBean(RestTemplate.class);
+
+    // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
+    @PostMapping("/apiTest")
+    // 평소 Server 구현 시 ResponseEntity에 ResponseData라는 객체를 담아 처리하기에 이를 그대로 가져왔다.
+    public ResponseEntity<ResponseData> apiTest(@RequestBody HashMap<String, Object> paramMap) throws InterruptedException {
+        log.trace("Call apiTest.");
+
+        // ResponseServer에서는 전달받은 Data에서 errorMsg를 추출해서 로그로 뿌려주면서 호출 Server를 확인해주고
+        String errorMsg = paramMap.get("errorMsg").toString();
+        log.info("errorMsg : {}", errorMsg);
+
+        // 응답으로 전달할 메시지를 저장한뒤
+        responseData.setErrorMsg("http://localhost:8080/apiTest - Call apiTest.");
+
+        // 3초의 간격을 주었다.
+        Thread.sleep(3000);
+        return ResponseEntity.status(HttpStatus.OK).body(responseData);
+    }
 
     @PostMapping("/blocking")
     public ResponseEntity<ResponseData> Blocking() {
@@ -170,25 +192,46 @@ public class APIController {
         ResponseData responseData01 = new ResponseData();
         return webClient.post()
                 .uri("/apiTest")
-                .bodyValue(responseData01.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline04(" + i + ")"))
+                //.bodyValue(responseData01.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline04(" + i + ")"))
                 .retrieve()
                 .bodyToMono(ResponseData.class);
     }
-    // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
-    @PostMapping("/apiTest")
-    // 평소 Server 구현 시 ResponseEntity에 ResponseData라는 객체를 담아 처리하기에 이를 그대로 가져왔다.
-    public ResponseEntity<ResponseData> apiTest(@RequestBody HashMap<String, Object> paramMap) throws InterruptedException {
-        log.trace("Call apiTest.");
 
-        // ResponseServer에서는 전달받은 Data에서 errorMsg를 추출해서 로그로 뿌려주면서 호출 Server를 확인해주고
-        String errorMsg = paramMap.get("errorMsg").toString();
-        log.info("errorMsg : {}", errorMsg);
+    @PostMapping("/blockingSocket")
+    public ResponseEntity<ResponseData> BlockingSocket() {
+        log.trace("Call blockingSocket.");
 
-        // 응답으로 전달할 메시지를 저장한뒤
-        responseData.setErrorMsg("http://localhost:8080/apiTest - Call apiTest.");
+        // 시간 측정을 위해 선언
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
 
-        // 3초의 간격을 주었다.
-        Thread.sleep(3000);
-        return ResponseEntity.status(HttpStatus.OK).body(responseData);
+        SocketChannel socketChannel = null;
+        ResponseEntity responseEntity = null;
+        try {
+            socketChannel = SocketChannel.open();
+            socketChannel.configureBlocking(true);
+            socketChannel.connect(new InetSocketAddress("localhost", 8080));
+
+            responseData.setErrorMsg("http://localhost:18080/blockingSocket - Call blockingSocket.");
+
+            for (int i = 0; i < 3; i++) {
+                // Response Server API 호출
+                //ByteBuffer byteBuffer = ByteBuffer.wrap(responseData.toString().getBytes());
+                ByteBuffer byteBuffer = ByteBuffer.wrap("test".getBytes());
+                socketChannel.write(byteBuffer);
+
+                byteBuffer = ByteBuffer.allocate(128);
+                while (-1 != socketChannel.read(byteBuffer)) {
+                    log.info("body : {}", byteBuffer.toString());
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return responseEntity.status(HttpStatus.OK).body(responseData);
     }
 }
