@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 
 @Controller
@@ -208,23 +209,29 @@ public class APIController {
         SocketChannel socketChannel = null;
         ResponseEntity responseEntity = null;
         try {
-            socketChannel = SocketChannel.open();
-            socketChannel.configureBlocking(true);
-            socketChannel.connect(new InetSocketAddress("localhost", 8080));
 
-            responseData.setErrorMsg("http://localhost:18080/blockingSocket - Call blockingSocket.");
+
+            responseData.setErrorMsg("http://localhost:18080 - Call blockingSocket.");
 
             for (int i = 0; i < 3; i++) {
+                socketChannel = SocketChannel.open();
+                socketChannel.configureBlocking(true);
+                socketChannel.connect(new InetSocketAddress("localhost", 28080));
+
                 // Response Server API 호출
-                //ByteBuffer byteBuffer = ByteBuffer.wrap(responseData.toString().getBytes());
-                ByteBuffer byteBuffer = ByteBuffer.wrap("test".getBytes());
+                ByteBuffer byteBuffer = ByteBuffer.wrap(responseData.toString().getBytes());
                 socketChannel.write(byteBuffer);
 
                 byteBuffer = ByteBuffer.allocate(128);
-                while (-1 != socketChannel.read(byteBuffer)) {
-                    log.info("body : {}", byteBuffer.toString());
+                int readInt = socketChannel.read(byteBuffer);
+                if (-1 != readInt) {
+                    Charset charset = Charset.forName("UTF-8");
+                    byteBuffer.flip();
+                    log.info("body : {}", charset.decode(byteBuffer).toString());
                 }
             }
+            socketChannel.close();
+
         } catch (IOException e) {
             e.printStackTrace();
         }
