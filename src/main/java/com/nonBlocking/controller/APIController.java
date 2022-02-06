@@ -1,7 +1,8 @@
-package com.nonBlocking;
+package com.nonBlocking.controller;
 
 import com.nonBlocking.common.ResponseData;
-import com.nonBlocking.dto.UserDto;
+import com.nonBlocking.service.SocketService;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationContext;
@@ -15,20 +16,16 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.util.function.Tuples;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
 import java.util.HashMap;
 
 @Controller
+@RequiredArgsConstructor
 public class APIController {
     private Logger log = LoggerFactory.getLogger(APIController.class);
     ApplicationContext responseDataAC = new AnnotationConfigApplicationContext(ResponseData.class);
     ResponseData responseData = responseDataAC.getBean(ResponseData.class);
+    private final SocketService socketService;
     String url = "http://localhost:8080/apiTest";
     WebClient webClient = WebClient.create("http://localhost:8080");
 
@@ -205,37 +202,37 @@ public class APIController {
         // 시간 측정을 위해 선언
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-
-        SocketChannel socketChannel = null;
         ResponseEntity responseEntity = null;
-        try {
+        responseData.setErrorMsg("http://localhost:18080 - Call blockingSocket.");
 
-
-            responseData.setErrorMsg("http://localhost:18080 - Call blockingSocket.");
-
-            for (int i = 0; i < 3; i++) {
-                socketChannel = SocketChannel.open();
-                socketChannel.configureBlocking(true);
-                socketChannel.connect(new InetSocketAddress("localhost", 28080));
-
-                // Response Server API 호출
-                ByteBuffer byteBuffer = ByteBuffer.wrap(responseData.toString().getBytes());
-                socketChannel.write(byteBuffer);
-
-                byteBuffer = ByteBuffer.allocate(128);
-                int readInt = socketChannel.read(byteBuffer);
-                if (-1 != readInt) {
-                    Charset charset = Charset.forName("UTF-8");
-                    byteBuffer.flip();
-                    log.info("body : {}", charset.decode(byteBuffer).toString());
-                }
-            }
-            socketChannel.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
+        //socketService.BlockingSocketInit("localhost", 28080);
+        for (int i = 0; i < 3; i++) {
+            responseData = socketService.BlockingSocket(responseData.toString());
         }
+        //socketService.BlockingSocketRead();
 
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return responseEntity.status(HttpStatus.OK).body(responseData);
+    }
+
+    @PostMapping("/nonBlockingSocket")
+    public ResponseEntity<ResponseData> NonBlockingSocket() {
+        log.info("Call nonBlockingSocket API.");
+
+        // 시간 측정을 위해 선언
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+        ResponseEntity responseEntity = null;
+        responseData.setErrorMsg("http://localhost:18080 - Call nonBlockingSocket.");
+
+        socketService.NonBlockingSocketInit("localhost", 28080);
+        SocketService.Receive receive = new SocketService.Receive();
+        new Thread(receive).start();
+        for (int i = 0; i < 3; i++) {
+            socketService.NonBlockingSocketWrite("http://localhost:18080 - Call nonBlockingSocket.");
+        }
         stopWatch.stop();
         log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
 
