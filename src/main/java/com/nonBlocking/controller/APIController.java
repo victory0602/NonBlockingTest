@@ -1,6 +1,8 @@
 package com.nonBlocking.controller;
 
 import com.nonBlocking.common.ResponseData;
+import com.nonBlocking.config.RestTemplateConfig;
+import com.nonBlocking.service.RestTemplateService;
 import com.nonBlocking.service.SocketService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -26,6 +28,7 @@ public class APIController {
     ApplicationContext responseDataAC = new AnnotationConfigApplicationContext(ResponseData.class);
     ResponseData responseData = responseDataAC.getBean(ResponseData.class);
     private final SocketService socketService;
+    private final RestTemplateService restTemplateService;
     String url = "http://localhost:8080/apiTest";
     WebClient webClient = WebClient.create("http://localhost:8080");
 
@@ -33,8 +36,9 @@ public class APIController {
     * Blocking 통신 구현을 위한 RestTemplate 선언
     * HTTP Server와의 통신을 단순화하고 RESTful 원칙을 지킨다.
     */
-    ApplicationContext restTemplateAC = new AnnotationConfigApplicationContext(RestTemplate.class);
-    RestTemplate restTemplate = restTemplateAC.getBean(RestTemplate.class);
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(RestTemplateConfig.class);
+    RestTemplateConfig restTemplateConfig = ac.getBean(RestTemplateConfig.class);
+    RestTemplate restTemplate = null;
 
     // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
     @PostMapping("/apiTest")
@@ -57,22 +61,23 @@ public class APIController {
     @PostMapping("/blocking")
     public ResponseEntity<ResponseData> Blocking() {
         log.trace("Call blocking.");
+        restTemplate = restTemplateConfig.restTemplate(
+                restTemplateConfig.factory(
+                        restTemplateConfig.httpClient()
+                )
+        );
 
         // 시간 측정을 위해 선언
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
-        // Set Header
-        HttpHeaders headers = new HttpHeaders();
-        headers.add("Content-Type", "application/json");
-
-        responseData.setErrorMsg("http://localhost:18080/blocking - Call blocking.");
-        HttpEntity<ResponseData> responseDataHttpEntity = new HttpEntity<>(responseData, headers);
+        String body = "";
         ResponseEntity responseEntity = null;
         for(int i = 0; i < 3; i++) {
             // Response Server API 호출
-            responseEntity = restTemplate.exchange(url, HttpMethod.POST, responseDataHttpEntity, ResponseData.class);
-            String body = responseEntity.getBody().toString();
+            body = "http://localhost:18080/blocking - Call blocking.";
+            responseEntity = restTemplateService.write(restTemplate, url, HttpMethod.POST, body);
+            body = responseEntity.getBody().toString();
             log.info("body : {}", body);
         }
 

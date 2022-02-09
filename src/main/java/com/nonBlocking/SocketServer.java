@@ -3,15 +3,15 @@ package com.nonBlocking;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
-
+/*
+* SocketServer의 Blocking, NonBlocking 예시이다.
+* Socket통신은 양방향 통신이기 때문에 요청을 하는 SocketServer가 Blocking Server라면
+* 요청을 받는 Socket Server도 Blocking Server로 해야한다.
+* NonBlocking Server라면 똑같이 NonBlocking Server로 만들어준다.
+* */
 public class SocketServer {
     private static Logger log = LoggerFactory.getLogger(SocketServer.class);
+
     public static void main(String[] args) {
         // Blocking
         /*try {
@@ -42,149 +42,130 @@ public class SocketServer {
             e.printStackTrace();
         }*/
         /* NonBlocking
-        package com.SocketServer;
+        public class SocketServerApplication {
+            private static Logger log = LoggerFactory.getLogger(SocketServerApplication.class);
+            ServerSocketChannel serverSocketChannel = null;
+            public static void main(String[] args) {
+                Server server = new Server();
+                new Thread(server).start();
+            }
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+            public static class Server implements Runnable {
+                public void run() {
+                    try (Selector selector = Selector.open()) {
+                        try (ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
+                            serverChannel.configureBlocking(true);
+                            serverChannel.socket().bind(new InetSocketAddress(28080));
+                            serverChannel.register(selector, SelectionKey.OP_ACCEPT);
+                            while (selector.select() > 0) {
+                                Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
+                                while (keys.hasNext()) {
+                                    SelectionKey key = keys.next();
+                                    keys.remove();
+                                    if (!key.isValid()) {
+                                        continue;
+                                    }
+                                    if (key.isAcceptable()) {
+                                        this.accept(selector, key);
+                                    } else if (key.isReadable()) {
+                                        this.receive(selector, key);
+                                    } else if (key.isWritable()) {
+                                        this.send(selector, key);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.Charset;
-import java.util.Iterator;
+                public static void accept(Selector selector, SelectionKey selectionKey) {
+                    try {
+                        log.info("accept Start");
+                        // 키 채널 가져오기
+                        ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
 
-@SpringBootApplication
-public class SocketServerApplication {
-	private static Logger log = LoggerFactory.getLogger(SocketServerApplication.class);
-	ServerSocketChannel serverSocketChannel = null;
-	public static void main(String[] args) {
-		Server server = new Server();
-		new Thread(server).start();
-	}
+                        // 채널 가져오기
+                        SocketChannel socketChannel = serverSocketChannel.accept();
 
-	public static class Server implements Runnable {
-		public void run() {
-			try (Selector selector = Selector.open()) {
-				try (ServerSocketChannel serverChannel = ServerSocketChannel.open()) {
-					serverChannel.configureBlocking(true);
-					serverChannel.socket().bind(new InetSocketAddress(28080));
-					serverChannel.register(selector, SelectionKey.OP_ACCEPT);
-					while (selector.select() > 0) {
-						Iterator<SelectionKey> keys = selector.selectedKeys().iterator();
-						while (keys.hasNext()) {
-							SelectionKey key = keys.next();
-							keys.remove();
-							if (!key.isValid()) {
-								continue;
-							}
-							if (key.isAcceptable()) {
-								this.accept(selector, key);
-							} else if (key.isReadable()) {
-								this.receive(selector, key);
-							} else if (key.isWritable()) {
-								this.send(selector, key);
-							}
-						}
-					}
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+                        // NonBlocking 설정
+                        socketChannel.configureBlocking(false);
 
-		public static void accept(Selector selector, SelectionKey selectionKey) {
-			try {
-				log.info("accept Start");
-				// 키 채널 가져오기
-				ServerSocketChannel serverSocketChannel = (ServerSocketChannel) selectionKey.channel();
+                        // 접속 Socket 단위로 사용되는 Buffer
+                        StringBuffer stringBuffer = new StringBuffer();
+                        stringBuffer.append("NonBlocking Socket Server. call accept");
 
-				// 채널 가져오기
-				SocketChannel socketChannel = serverSocketChannel.accept();
+                        // Socekt채널을 channel에 송신 등록
+                        socketChannel.register(selector, SelectionKey.OP_WRITE, stringBuffer);
+                        log.info("accept End");
+                    } catch (IllegalArgumentException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-				// NonBlocking 설정
-				socketChannel.configureBlocking(false);
+                // 수신
+                public static void receive(Selector selector, SelectionKey selectionKey) {
+                    try {
+                        log.info("receive Start");
+                        // 키 채널 가져오기
+                        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
 
-				// 접속 Socket 단위로 사용되는 Buffer
-				StringBuffer stringBuffer = new StringBuffer();
-				stringBuffer.append("NonBlocking Socket Server. call accept");
+                        // NonBlocking 설정
+                        socketChannel.configureBlocking(false);
 
-				// Socekt채널을 channel에 송신 등록
-				socketChannel.register(selector, SelectionKey.OP_WRITE, stringBuffer);
-				log.info("accept End");
-			} catch (IllegalArgumentException e) {
-				e.printStackTrace();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+                        ByteBuffer byteBuffer = ByteBuffer.allocate(128);
 
-		// 수신
-		public static void receive(Selector selector, SelectionKey selectionKey) {
-			try {
-				log.info("receive Start");
-				// 키 채널 가져오기
-				SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+                        // 데이터 수신
+                        int readSize = socketChannel.read(byteBuffer);
+                        if(readSize == -1) {
+                            socketChannel.close();
+                            selectionKey.cancel();
+                            return;
+                        }
 
-				// NonBlocking 설정
-				socketChannel.configureBlocking(false);
+                        byte[] data = new byte[readSize];
+                        System.arraycopy(byteBuffer.array(), 0, data, 0, readSize);
 
-				ByteBuffer byteBuffer = ByteBuffer.allocate(128);
+                        StringBuffer stringBuffer = (StringBuffer) selectionKey.attachment();
+                        stringBuffer.append(new String(data));
+                        log.info("receive stringBuffer : {}", stringBuffer.toString());
 
-				// 데이터 수신
-				int readSize = socketChannel.read(byteBuffer);
-				if(readSize == -1) {
-					socketChannel.close();
-					selectionKey.cancel();
-					return;
-				}
+                        socketChannel.register(selector, SelectionKey.OP_WRITE, stringBuffer);
+                        log.info("receive End");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
 
-				byte[] data = new byte[readSize];
-				System.arraycopy(byteBuffer.array(), 0, data, 0, readSize);
+                // 발신
+                public static void send(Selector selector, SelectionKey selectionKey) {
+                    try {
+                        log.info("send Start");
+                        // 키 채널 가져오기
+                        SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
 
-				StringBuffer stringBuffer = (StringBuffer) selectionKey.attachment();
-				stringBuffer.append(new String(data));
-				log.info("receive stringBuffer : {}", stringBuffer.toString());
+                        // NonBlocking 설정
+                        socketChannel.configureBlocking(false);
 
-				socketChannel.register(selector, SelectionKey.OP_WRITE, stringBuffer);
-				log.info("receive End");
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
-		}
+                        StringBuffer stringBuffer = (StringBuffer) selectionKey.attachment();
+                        String data = "NonBlocking Socket Server. call send";
 
-		// 발신
-		public static void send(Selector selector, SelectionKey selectionKey) {
-			try {
-				log.info("send Start");
-				// 키 채널 가져오기
-				SocketChannel socketChannel = (SocketChannel) selectionKey.channel();
+                        stringBuffer.setLength(0);
+                        ByteBuffer byteBuffer = ByteBuffer.wrap(data.getBytes());
 
-				// NonBlocking 설정
-				socketChannel.configureBlocking(false);
-
-				StringBuffer stringBuffer = (StringBuffer) selectionKey.attachment();
-				String data = "NonBlocking Socket Server. call send";
-
-				stringBuffer.setLength(0);
-				ByteBuffer byteBuffer = ByteBuffer.wrap(data.getBytes());
-
-				Thread.sleep(2000);
-				socketChannel.write(byteBuffer);
-				socketChannel.register(selector, SelectionKey.OP_READ, stringBuffer);
-				log.info("send End");
-			} catch (IOException | InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-	}
-}
+                        Thread.sleep(2000);
+                        socketChannel.write(byteBuffer);
+                        socketChannel.register(selector, SelectionKey.OP_READ, stringBuffer);
+                        log.info("send End");
+                    } catch (IOException | InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
 
          */
     }
