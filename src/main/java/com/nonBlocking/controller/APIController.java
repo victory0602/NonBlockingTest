@@ -2,11 +2,13 @@ package com.nonBlocking.controller;
 
 import com.nonBlocking.common.ResponseData;
 import com.nonBlocking.config.RestTemplateConfig;
+import com.nonBlocking.config.WebClientConfig;
 import com.nonBlocking.service.RestTemplateService;
 import com.nonBlocking.service.SocketService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.http.*;
@@ -36,9 +38,11 @@ public class APIController {
     * Blocking 통신 구현을 위한 RestTemplate 선언
     * HTTP Server와의 통신을 단순화하고 RESTful 원칙을 지킨다.
     */
-    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(RestTemplateConfig.class);
-    RestTemplateConfig restTemplateConfig = ac.getBean(RestTemplateConfig.class);
+    private final RestTemplateConfig restTemplateConfig;
     RestTemplate restTemplate = null;
+
+    @Autowired
+    private WebClientConfig webClientConfig;
 
     // 아래 API는 다른 Server에 추가하여 API Test 통신을 받아준다.
     @PostMapping("/apiTest")
@@ -91,7 +95,6 @@ public class APIController {
     public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient01() {
         log.trace("Call nonBlocking webcline01.");
 
-        WebClient webClient = WebClient.create("http://localhost:8080");
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
@@ -99,7 +102,11 @@ public class APIController {
 
         Mono<ResponseData> responseEntityMono = null;
         for(int i = 0; i < 3; i++) {
-            responseEntityMono = webClient.post()
+            responseEntityMono = webClientConfig.webClient()
+                    .mutate()
+                    .baseUrl("http://localhost:8080")
+                    .build()
+                    .post()
                     .uri("/apiTest")
                     .bodyValue(responseData)
                     .retrieve()
@@ -120,14 +127,17 @@ public class APIController {
     public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient02() {
         log.trace("Call nonBlocking webcline02.");
 
-        WebClient webClient = WebClient.create("http://localhost:8080");
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
         Mono<ResponseData> responseEntityMono = null;
         for(int i = 0; i < 3; i++) {
             responseData.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline02(" + i + ")");
-            webClient.post()
+            webClientConfig.webClient()
+                    .mutate()
+                    .baseUrl("http://localhost:8080")
+                    .build()
+                    .post()
                     .uri("/apiTest")
                     .bodyValue(responseData)
                     .retrieve()
@@ -147,7 +157,6 @@ public class APIController {
     public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient03() {
         log.trace("Call nonBlocking webcline03.");
 
-        WebClient webClient = WebClient.create("http://localhost:8080");
         final StopWatch stopWatch = new StopWatch();
         stopWatch.start();
 
@@ -155,7 +164,11 @@ public class APIController {
         for(int i = 0; i < 3; i++) {
             responseData.setErrorMsg("http://localhost:18080/nonBlocking - Call nonBlocking webcline03(" + i + ")");
             log.info("responseData.getErrorMsg() : {}", responseData.getErrorMsg());
-            responseEntityMono = webClient.post()
+            responseEntityMono = webClientConfig.webClient()
+                    .mutate()
+                    .baseUrl("http://localhost:8080")
+                    .build()
+                    .post()
                     .uri("/apiTest")
                     .bodyValue(responseData)
                     .retrieve()
