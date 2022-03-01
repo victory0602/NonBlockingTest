@@ -22,6 +22,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.concurrent.*;
 
 @Controller
 @RequiredArgsConstructor
@@ -63,7 +64,7 @@ public class APIController {
     }
 
     @PostMapping("/blocking")
-    public ResponseEntity<ResponseData> Blocking() {
+    public ResponseEntity<ResponseData> blocking() {
         log.trace("Call blocking.");
         restTemplate = restTemplateConfig.restTemplate(
                 restTemplateConfig.factory(
@@ -92,7 +93,7 @@ public class APIController {
     }
 
     @PostMapping("/nonBlocking/webcline01")
-    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient01() {
+    public Mono<ResponseEntity<ResponseData>> nonBlockingWebClient01() {
         log.trace("Call nonBlocking webcline01.");
 
         final StopWatch stopWatch = new StopWatch();
@@ -124,7 +125,7 @@ public class APIController {
     }
 
     @PostMapping("/nonBlocking/webcline02")
-    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient02() {
+    public Mono<ResponseEntity<ResponseData>> nonBlockingWebClient02() {
         log.trace("Call nonBlocking webcline02.");
 
         final StopWatch stopWatch = new StopWatch();
@@ -154,7 +155,7 @@ public class APIController {
     }
 
     @PostMapping("/nonBlocking/webcline03")
-    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient03() {
+    public Mono<ResponseEntity<ResponseData>> nonBlockingWebClient03() {
         log.trace("Call nonBlocking webcline03.");
 
         final StopWatch stopWatch = new StopWatch();
@@ -187,7 +188,7 @@ public class APIController {
     }
 
     @PostMapping("/nonBlocking/webcline04")
-    public Mono<ResponseEntity<ResponseData>> NonBlockingWebClient04() {
+    public Mono<ResponseEntity<ResponseData>> nonBlockingWebClient04() {
         log.trace("Call nonBlocking webcline04.");
 
 
@@ -214,7 +215,7 @@ public class APIController {
     }
 
     @PostMapping("/blockingSocket")
-    public ResponseEntity<ResponseData> BlockingSocket() {
+    public ResponseEntity<ResponseData> blockingSocket() {
         log.trace("Call blockingSocket.");
 
         // 시간 측정을 위해 선언
@@ -236,7 +237,7 @@ public class APIController {
     }
 
     @PostMapping("/nonBlockingSocket")
-    public ResponseEntity<ResponseData> NonBlockingSocket() {
+    public ResponseEntity<ResponseData> nonBlockingSocket() {
         log.info("Call nonBlockingSocket API.");
 
         // 시간 측정을 위해 선언
@@ -253,6 +254,92 @@ public class APIController {
         }
         stopWatch.stop();
         log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
+        return responseEntity.status(HttpStatus.OK).body(responseData);
+    }
+
+    @PostMapping("/future01")
+    public ResponseEntity<ResponseData> future01() {
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        log.trace("Call future01.");
+        restTemplate = restTemplateConfig.restTemplate(
+                restTemplateConfig.factory(
+                        restTemplateConfig.httpClient()
+                )
+        );
+
+        // 시간 측정을 위해 선언
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        ResponseEntity responseEntity = null;
+        Future<String> future = null;
+        String body = "http://localhost:18080/future01 - Call future01.";
+        for(int i = 0; i < 3; i++) {
+            // Response Server API 호출
+            future = executorService.submit(() -> restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString());
+        }
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+        try {
+            if(future.isDone()) {
+                log.info("future.get() : {}", future.get(5000L, TimeUnit.MILLISECONDS));
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (TimeoutException e) {
+            e.printStackTrace();
+        }
+
+        return responseEntity.status(HttpStatus.OK).body(responseData);
+    }
+
+    @PostMapping("/future02")
+    public ResponseEntity<ResponseData> future02() {
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        log.trace("Call future02.");
+        restTemplate = restTemplateConfig.restTemplate(
+                restTemplateConfig.factory(
+                        restTemplateConfig.httpClient()
+                )
+        );
+
+        // 시간 측정을 위해 선언
+        final StopWatch stopWatch = new StopWatch();
+        stopWatch.start();
+
+        ResponseEntity responseEntity = null;
+        FutureTask<String> futureTask = null;
+        String body = "http://localhost:18080/future01 - Call future02.";
+        futureTask = new FutureTask<>(() ->{
+            return restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString();
+        }){
+            @Override
+            protected void done() {
+                try {
+                    log.info("future.get() : {}", get());
+                    //log.info("future.get() : {}", get(5000L, TimeUnit.MILLISECONDS));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                } /*catch (TimeoutException e) {
+                    e.printStackTrace();
+                }*/
+            }
+        };
+
+        futureTask = new FutureTask<>(() ->
+                restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString());
+        for(int i = 0; i < 3; i++) {
+            // Response Server API 호출
+            executorService.execute(futureTask);
+        }
+        stopWatch.stop();
+        log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
 
         return responseEntity.status(HttpStatus.OK).body(responseData);
     }
