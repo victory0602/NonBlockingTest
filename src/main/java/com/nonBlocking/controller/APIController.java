@@ -277,12 +277,18 @@ public class APIController {
         String body = "http://localhost:18080/future01 - Call future01.";
         for(int i = 0; i < 3; i++) {
             // Response Server API 호출
-            future = executorService.submit(() -> restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString());
+            future = (Future<String>) executorService.submit(() -> {
+                log.info("executorService.submit() Call");
+                restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString();
+            });
         }
         stopWatch.stop();
         log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
+
         try {
+            // false
             if(future.isDone()) {
+                // Blocking
                 log.info("future.get() : {}", future.get(5000L, TimeUnit.MILLISECONDS));
             }
         } catch (InterruptedException e) {
@@ -297,8 +303,9 @@ public class APIController {
     }
 
     @PostMapping("/future02")
-    public ResponseEntity<ResponseData> future02() {
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
+    public ResponseEntity<ResponseData> future02() throws InterruptedException {
+        //ExecutorService executorService = Executors.newSingleThreadExecutor();
+        ExecutorService executorService = Executors.newFixedThreadPool(5);
         log.trace("Call future02.");
         restTemplate = restTemplateConfig.restTemplate(
                 restTemplateConfig.factory(
@@ -313,29 +320,19 @@ public class APIController {
         ResponseEntity responseEntity = null;
         FutureTask<String> futureTask = null;
         String body = "http://localhost:18080/future01 - Call future02.";
-        futureTask = new FutureTask<>(() ->{
-            return restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString();
-        }){
-            @Override
-            protected void done() {
-                try {
-                    log.info("future.get() : {}", get());
-                    //log.info("future.get() : {}", get(5000L, TimeUnit.MILLISECONDS));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                } /*catch (TimeoutException e) {
-                    e.printStackTrace();
-                }*/
-            }
-        };
 
-        futureTask = new FutureTask<>(() ->
-                restTemplateService.write(restTemplate, url, HttpMethod.POST, body).getBody().toString());
         for(int i = 0; i < 3; i++) {
             // Response Server API 호출
-            executorService.execute(futureTask);
+            //executorService.execute(futureTask);
+            body = "http://localhost:18080/future01 - Call future02.[" + i + "]";
+            String finalBody = body;
+            executorService.execute(new FutureTask<>(() ->
+                    restTemplateService.write(restTemplate, url, HttpMethod.POST, finalBody).getBody().toString()){
+                @Override
+                protected void done() {
+                    log.info("done call*************");
+                }
+            });
         }
         stopWatch.stop();
         log.info("Total Second : {}", stopWatch.getTotalTimeSeconds());
